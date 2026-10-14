@@ -2,14 +2,14 @@ import { Task, TeamMember, NotificationItem } from '../types';
 
 export const OWNER_USER: TeamMember = {
   id: 'owner',
-  name: 'David Sterling',
-  email: 'david.owner@enterprise.co',
+  name: 'Mr. Karan Rajpal',
+  email: 'king@therajpal.com',
   roleTitle: 'Owner & Managing Director',
-  department: 'Executive Leadership',
+  department: 'Company',
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   accentColor: '#6366f1',
   isOwner: true,
-  password: 'password123',
+  password: '55555',
 };
 
 export const TEAM_MEMBERS: TeamMember[] = [
