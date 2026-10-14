@@ -1,0 +1,7 @@
+{
+  "name": "DelegateOS - Delegation & Task Verification System",
+  "description": "Executive delegation system with dual recurring and ad-hoc tasks, primary/secondary/sub-secondary doers, proof verification, correction workflows, and doer accountability scorecards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
