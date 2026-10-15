@@ -350,17 +350,13 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
   const handleSecondaryDoerChange = (newId: string) => {
     setSecondaryDoerId(newId);
     const member = teamMembers.find((m) => m.id === newId);
-    if (member?.email) {
-      setSecondaryDoerEmail(member.email);
-    }
+    setSecondaryDoerEmail(member?.email || '');
   };
 
   const handleSubSecondaryDoerChange = (newId: string) => {
     setSubSecondaryDoerId(newId);
     const member = teamMembers.find((m) => m.id === newId);
-    if (member?.email) {
-      setSubSecondaryDoerEmail(member.email);
-    }
+    setSubSecondaryDoerEmail(member?.email || '');
   };
 
   const handleAddExtraEmail = (e: React.FormEvent) => {
@@ -955,6 +951,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
                     onChange={(e) => handleSecondaryDoerChange(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white font-medium focus:outline-none focus:border-indigo-500"
                   >
+                    <option value="">None</option>
                     {teamMembers.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name} ({m.department})
@@ -995,6 +992,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
                     onChange={(e) => handleSubSecondaryDoerChange(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-white font-medium focus:outline-none focus:border-indigo-500"
                   >
+                    <option value="">None</option>
                     {teamMembers.map((m) => (
                       <option key={m.id} value={m.id}>
                         {m.name} ({m.department})
