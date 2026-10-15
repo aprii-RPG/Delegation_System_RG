@@ -32,6 +32,7 @@ interface TaskContextType {
   // Auth & Session
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
+  changeLoginEmail: (email: string) => Promise<void>;
   
   // Admin User & Credential Management
   updateUserCredentials: (userId: string, updates: Partial<TeamMember>) => void;
@@ -252,6 +253,14 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) setDataError(`Sign out failed: ${error.message}`);
+  };
+
+  const changeLoginEmail = async (email: string) => {
+    if (!currentUser.isOwner) {
+      throw new Error('Only the administrator can change the admin login email.');
+    }
+    const { error } = await supabase.auth.updateUser({ email: email.trim() });
+    if (error) throw new Error(error.message);
   };
 
   useEffect(() => {
@@ -1209,6 +1218,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         doerScorecards,
         login,
         logout,
+        changeLoginEmail,
         updateUserCredentials,
         addNewTeamMember,
         deleteTeamMember,

@@ -25,7 +25,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
   const {
     ownerUser,
     teamMembers,
+    currentUser,
     updateUserCredentials,
+    changeLoginEmail,
     addNewTeamMember,
     deleteTeamMember,
   } = useTasks();
@@ -49,6 +51,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
   const [newAvatar, setNewAvatar] = useState(PRESET_AVATARS[0].url);
 
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
+  const [newLoginEmail, setNewLoginEmail] = useState('');
+  const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
+  const [isChangingLoginEmail, setIsChangingLoginEmail] = useState(false);
 
   const handleStartEdit = (user: TeamMember) => {
     setEditingUser(user);
@@ -72,6 +77,21 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
     setNotificationMsg(`Profile for ${editName} updated successfully.`);
     setEditingUser(null);
     setTimeout(() => setNotificationMsg(null), 3000);
+  };
+
+  const handleChangeLoginEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailChangeError(null);
+    setIsChangingLoginEmail(true);
+    try {
+      await changeLoginEmail(newLoginEmail);
+      setNotificationMsg('Check your email and follow Supabase’s confirmation instructions to finish changing the login email.');
+      setNewLoginEmail('');
+    } catch (error) {
+      setEmailChangeError(error instanceof Error ? error.message : 'Unable to request an email change.');
+    } finally {
+      setIsChangingLoginEmail(false);
+    }
   };
 
   // Handle local file upload in edit modal
@@ -197,6 +217,41 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
               <span>Add Employee</span>
             </button>
           </div>
+
+          {currentUser.isOwner && (
+            <form
+              onSubmit={handleChangeLoginEmail}
+              className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3"
+            >
+              <div>
+                <h4 className="text-sm font-bold text-white">Change admin login email</h4>
+                <p className="mt-1 text-xs text-slate-400">
+                  Supabase will send confirmation instructions. The profile email sync requires migration 202610150003_sync_auth_email.sql.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={newLoginEmail}
+                  onChange={(e) => setNewLoginEmail(e.target.value)}
+                  placeholder="New admin login email"
+                  className="flex-1 min-w-0 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                />
+                <button
+                  type="submit"
+                  disabled={isChangingLoginEmail || !newLoginEmail.trim()}
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+                >
+                  {isChangingLoginEmail ? 'Sending…' : 'Request email change'}
+                </button>
+              </div>
+              {emailChangeError && (
+                <p role="alert" className="text-xs text-rose-300">{emailChangeError}</p>
+              )}
+            </form>
+          )}
 
           {/* Accounts List Table */}
           <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
