@@ -102,6 +102,34 @@ interface DatabaseProfile {
   } | null;
 }
 
+const getFunctionErrorMessage = async (error: { message: string; context?: unknown }) => {
+  if (!(error.context instanceof Response)) return error.message;
+
+  try {
+    const responseBody: unknown = await error.context.clone().json();
+    if (
+      responseBody &&
+      typeof responseBody === 'object' &&
+      'error' in responseBody &&
+      typeof responseBody.error === 'string'
+    ) {
+      return responseBody.error;
+    }
+    if (
+      responseBody &&
+      typeof responseBody === 'object' &&
+      'message' in responseBody &&
+      typeof responseBody.message === 'string'
+    ) {
+      return responseBody.message;
+    }
+  } catch {
+    // Keep the SDK error if the Edge Function did not return a JSON error body.
+  }
+
+  return error.message;
+};
+
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [ownerUser, setOwnerUser] = useState<TeamMember>(OWNER_USER);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -260,7 +288,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Only the administrator can change the admin login email.');
     }
     const { error } = await supabase.auth.updateUser({ email: email.trim() });
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(await getFunctionErrorMessage(error));
   };
 
   useEffect(() => {
@@ -487,7 +515,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         accentColor: memberData.accentColor,
       },
     });
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(await getFunctionErrorMessage(error));
     if (!data?.employeeId || !data?.userId) {
       throw new Error(data?.error || 'The invitation did not return an employee profile.');
     }
