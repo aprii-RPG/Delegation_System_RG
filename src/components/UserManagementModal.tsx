@@ -29,6 +29,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
     updateUserCredentials,
     changeLoginEmail,
     addNewTeamMember,
+    sendEmployeePasswordReset,
     deleteTeamMember,
   } = useTasks();
 
@@ -337,6 +338,25 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
                       </button>
 
                       <span className="text-[10px] text-slate-500">Supabase Auth</span>
+
+                      {!isOwner && (
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Send a password reset link to ${member.email}?`)) return;
+                            try {
+                              await sendEmployeePasswordReset(member.id);
+                              setNotificationMsg(`Password reset link sent to ${member.email}.`);
+                            } catch (error) {
+                              alert(error instanceof Error ? error.message : 'Could not send password reset email.');
+                            }
+                          }}
+                          className="flex items-center space-x-1 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1.5 text-xs font-semibold text-indigo-300 transition-colors hover:bg-indigo-500/20 hover:text-white"
+                          title={`Send password reset link to ${member.email}`}
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Reset password</span>
+                        </button>
+                      )}
 
                       {/* Reset / Edit Button */}
                       <button

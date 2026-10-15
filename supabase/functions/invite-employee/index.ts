@@ -60,13 +60,58 @@ Deno.serve(async (request: Request) => {
   const avatar = typeof body.avatar === 'string' ? body.avatar : '';
   const accentColor = typeof body.accentColor === 'string' ? body.accentColor : '#3b82f6';
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !fullName) {
-    return Response.json({ error: 'A valid email and employee name are required.' }, { status: 400, headers: corsHeaders });
-  }
-
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  if (body.action === 'send-password-reset') {
+    const employeeId = typeof body.employeeId === 'string' ? body.employeeId : '';
+    if (!employeeId) {
+      return Response.json({ error: 'Employee ID is required.' }, { status: 400, headers: corsHeaders });
+    }
+
+    const { data: profile, error: profileError } = await admin
+      .from('profiles')
+      .select('email, app_role')
+      .eq('employee_id', employeeId)
+      .maybeSingle();
+    if (profileError) {
+      console.error('Employee lookup for password reset failed:', profileError.message);
+      return Response.json({ error: 'Unable to find employee account.' }, { status: 500, headers: corsHeaders });
+    }
+    if (!profile || profile.app_role !== 'employee') {
+      return Response.json({ error: 'Password reset is only available for employee accounts.' }, { status: 404, headers: corsHeaders });
+    }
+
+    const origin = request.headers.get('origin');
+    if (!origin) {
+      return Response.json({ error: 'The password reset request has no application origin.' }, { status: 400, headers: corsHeaders });
+    }
+
+    let redirectTo: string;
+    try {
+      const appOrigin = new URL(origin);
+      if (
+        appOrigin.origin !== origin ||
+        (appOrigin.protocol !== 'https:' && appOrigin.hostname !== 'localhost')
+      ) {
+        return Response.json({ error: 'The application origin is invalid.' }, { status: 400, headers: corsHeaders });
+      }
+      redirectTo = new URL('/set-password', appOrigin).toString();
+    } catch {
+      return Response.json({ error: 'The application origin is invalid.' }, { status: 400, headers: corsHeaders });
+    }
+
+    const emailClient = createClient(supabaseUrl, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { error: resetError } = await emailClient.auth.resetPasswordForEmail(profile.email, { redirectTo });
+    if (resetError) {
+      console.error('Employee password reset email failed:', resetError.message);
+      return Response.json({ error: resetError.message }, { status: 400, headers: corsHeaders });
+    }
+    return Response.json({ employeeId, sent: true }, { headers: corsHeaders });
+  }
+
   if (body.action === 'delete') {
     const employeeId = typeof body.employeeId === 'string' ? body.employeeId : '';
     if (!employeeId) {
@@ -113,6 +158,10 @@ Deno.serve(async (request: Request) => {
 
   if (body.action !== undefined && body.action !== 'invite') {
     return Response.json({ error: 'Unsupported action.' }, { status: 400, headers: corsHeaders });
+  }
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !fullName) {
+    return Response.json({ error: 'A valid email and employee name are required.' }, { status: 400, headers: corsHeaders });
   }
 
   const employeeId = `doer-${crypto.randomUUID()}`;

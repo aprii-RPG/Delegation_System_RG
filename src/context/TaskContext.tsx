@@ -38,6 +38,7 @@ interface TaskContextType {
   // Admin User & Credential Management
   updateUserCredentials: (userId: string, updates: Partial<TeamMember>) => void;
   addNewTeamMember: (newMember: Omit<TeamMember, 'id' | 'authUserId'>) => Promise<TeamMember>;
+  sendEmployeePasswordReset: (employeeId: string) => Promise<void>;
   deleteTeamMember: (userId: string) => Promise<void>;
   
   // Data Extraction & Backup
@@ -548,6 +549,15 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) throw new Error(error.message);
     if (data?.error) throw new Error(data.error);
     setTeamMembers((prev) => prev.filter((m) => m.id !== userId));
+  };
+
+  const sendEmployeePasswordReset = async (employeeId: string) => {
+    const { data, error } = await supabase.functions.invoke('invite-employee', {
+      body: { action: 'send-password-reset', employeeId },
+    });
+    if (error) throw new Error(await getFunctionErrorMessage(error));
+    if (data?.error) throw new Error(data.error);
+    if (!data?.sent) throw new Error('Supabase did not confirm the password reset email request.');
   };
 
   // DATA EXTRACTION & BACKUP: Full Database JSON export
@@ -1259,6 +1269,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         changeLoginEmail,
         updateUserCredentials,
         addNewTeamMember,
+        sendEmployeePasswordReset,
         deleteTeamMember,
         exportAllDataJSON,
         exportTasksCSV,

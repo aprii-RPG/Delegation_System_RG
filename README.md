@@ -77,7 +77,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
    ```
 
    The function uses Supabase’s server-side environment variables; never add the service-role key to the Vite app or Vercel frontend variables.
-5. In Supabase **Authentication → URL Configuration**, set the site URL and allow the local and deployed app password setup routes (for example `http://localhost:3000/set-password` and `https://your-deployed-app.vercel.app/set-password`) as redirect URLs. Employee invitation links open this route so employees can set their own passwords; no password is sent by email.
+5. In Supabase **Authentication → URL Configuration**, set the site URL and allow the local and deployed app password setup routes (for example `http://localhost:3000/set-password` and `https://your-deployed-app.vercel.app/set-password`) as redirect URLs. Employee invitation and password-reset links open this route so employees set their own passwords; no password is sent by email.
 6. Create the first user in **Authentication → Users**, then grant the admin role through the SQL Editor. Do not set role permissions from browser code.
 7. To change an account’s login email, update it in **Authentication → Users**. Confirm the change using the verification message sent by Supabase; the profile email is synchronized automatically by migration `202610150003_sync_auth_email.sql`.
 
