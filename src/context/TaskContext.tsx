@@ -32,6 +32,7 @@ interface TaskContextType {
   // Auth & Session
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
+  setPassword: (password: string) => Promise<void>;
   changeLoginEmail: (email: string) => Promise<void>;
   
   // Admin User & Credential Management
@@ -281,6 +282,14 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) setDataError(`Sign out failed: ${error.message}`);
+  };
+
+  const setPassword = async (password: string) => {
+    if (!authUserId) {
+      throw new Error('This password setup link is invalid or has expired. Request a new invitation.');
+    }
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw new Error(error.message);
   };
 
   const changeLoginEmail = async (email: string) => {
@@ -1246,6 +1255,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         doerScorecards,
         login,
         logout,
+        setPassword,
         changeLoginEmail,
         updateUserCredentials,
         addNewTeamMember,

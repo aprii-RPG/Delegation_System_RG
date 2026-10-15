@@ -61,6 +61,9 @@ const EditAvatarModal = lazy(() =>
 const SendMeetingLinkModal = lazy(() =>
   import('./components/SendMeetingLinkModal').then((module) => ({ default: module.SendMeetingLinkModal }))
 );
+const SetPasswordScreen = lazy(() =>
+  import('./components/SetPasswordScreen').then((module) => ({ default: module.SetPasswordScreen }))
+);
 
 const MainContent: React.FC = () => {
   const {
@@ -74,6 +77,7 @@ const MainContent: React.FC = () => {
     dataError,
     logout,
   } = useTasks();
+  const isPasswordSetupRoute = window.location.pathname === '/set-password';
 
   // Modal states
   const [taskForVerify, setTaskForVerify] = useState<Task | null>(null);
@@ -92,6 +96,14 @@ const MainContent: React.FC = () => {
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-300 text-sm">
         Connecting securely to DelegateOS…
       </div>
+    );
+  }
+
+  if (isPasswordSetupRoute) {
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
+        <SetPasswordScreen />
+      </Suspense>
     );
   }
 

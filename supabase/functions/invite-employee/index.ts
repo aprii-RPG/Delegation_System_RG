@@ -116,7 +116,27 @@ Deno.serve(async (request: Request) => {
   }
 
   const employeeId = `doer-${crypto.randomUUID()}`;
+  const origin = request.headers.get('origin');
+  if (!origin) {
+    return Response.json({ error: 'The invitation request has no application origin.' }, { status: 400, headers: corsHeaders });
+  }
+
+  let redirectTo: string;
+  try {
+    const appOrigin = new URL(origin);
+    if (
+      appOrigin.origin !== origin ||
+      (appOrigin.protocol !== 'https:' && appOrigin.hostname !== 'localhost')
+    ) {
+      return Response.json({ error: 'The application origin is invalid.' }, { status: 400, headers: corsHeaders });
+    }
+    redirectTo = new URL('/set-password', appOrigin).toString();
+  } catch {
+    return Response.json({ error: 'The application origin is invalid.' }, { status: 400, headers: corsHeaders });
+  }
+
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+    redirectTo,
     data: {
       employee_id: employeeId,
       full_name: fullName,
