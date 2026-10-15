@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   X,
   Plus,
@@ -18,6 +18,8 @@ import {
   Link,
   ExternalLink,
   Check,
+  Mic,
+  MicOff,
 } from 'lucide-react';
 import {
   TaskType,
@@ -41,6 +43,40 @@ export interface MeetingTypeOption {
   defaultTitle: string;
   defaultCategory: string;
   description: string;
+}
+
+type VoiceField = 'title' | 'description';
+
+interface VoiceRecognitionResult {
+  readonly isFinal: boolean;
+  readonly 0: { readonly transcript: string };
+}
+
+interface VoiceRecognitionEvent extends Event {
+  readonly resultIndex: number;
+  readonly results: ArrayLike<VoiceRecognitionResult>;
+}
+
+interface VoiceRecognitionErrorEvent extends Event {
+  readonly error: string;
+}
+
+interface VoiceRecognition {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: VoiceRecognitionEvent) => void) | null;
+  onerror: ((event: VoiceRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+type VoiceRecognitionConstructor = new () => VoiceRecognition;
+
+interface SpeechWindow extends Window {
+  SpeechRecognition?: VoiceRecognitionConstructor;
+  webkitSpeechRecognition?: VoiceRecognitionConstructor;
 }
 
 export const MEETING_TYPE_OPTIONS: MeetingTypeOption[] = [
@@ -129,6 +165,9 @@ export const MEETING_TYPE_OPTIONS: MeetingTypeOption[] = [
 
 export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => {
   const { teamMembers, createTask, ownerUser } = useTasks();
+  const [activeVoiceField, setActiveVoiceField] = useState<VoiceField | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const recognitionRef = useRef<VoiceRecognition | null>(null);
 
   const [type, setType] = useState<TaskType>('DELEGATION');
   const [isMeeting, setIsMeeting] = useState(true);
@@ -190,6 +229,76 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
     { id: 'chk-meet-4', title: 'Upload meeting minutes / proof screenshot for Owner verification stamp', completed: false },
   ]);
   const [newChecklistInput, setNewChecklistInput] = useState('');
+
+  useEffect(() => () => {
+    recognitionRef.current?.stop();
+  }, []);
+
+  const toggleVoiceInput = (field: VoiceField) => {
+    if (activeVoiceField === field) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const previousRecognition = recognitionRef.current;
+    recognitionRef.current = null;
+    previousRecognition?.stop();
+    const speechWindow = window as SpeechWindow;
+    const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    if (!Recognition) {
+      setVoiceError('Voice input is not supported in this browser. Try the latest Chrome or Edge.');
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.lang = 'en-IN';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    let hasTranscript = false;
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .slice(event.resultIndex)
+        .filter((result) => result.isFinal)
+        .map((result) => result[0].transcript.trim())
+        .filter(Boolean)
+        .join(' ');
+
+      if (!transcript) return;
+      const replaceCurrentText = !hasTranscript;
+      hasTranscript = true;
+      if (field === 'title') {
+        setTitle((current) => replaceCurrentText || !current ? transcript : `${current} ${transcript}`);
+      } else {
+        setDescription((current) => replaceCurrentText || !current ? transcript : `${current} ${transcript}`);
+      }
+    };
+    recognition.onerror = (event) => {
+      const messages: Record<string, string> = {
+        'not-allowed': 'Microphone access is blocked. Allow microphone access in your browser settings and try again.',
+        'service-not-allowed': 'The browser speech recognition service is unavailable.',
+        'no-speech': 'No speech was detected. Try speaking closer to your microphone.',
+        'audio-capture': 'No microphone was found. Connect or enable a microphone and try again.',
+        network: 'Voice recognition needs an internet connection. Check your connection and try again.',
+      };
+      setVoiceError(messages[event.error] || `Voice input failed (${event.error}). Please try again.`);
+    };
+    recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
+      setActiveVoiceField(null);
+    };
+
+    setVoiceError(null);
+    setActiveVoiceField(field);
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+    } catch (error) {
+      recognitionRef.current = null;
+      setActiveVoiceField(null);
+      setVoiceError(error instanceof Error ? error.message : 'Could not start voice input.');
+    }
+  };
 
   const CATEGORIES = [
     'Operations & Systems',
@@ -664,9 +773,24 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
           {/* 3. Core Task Information */}
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Task / Meeting Title <span className="text-indigo-400">*</span>
-              </label>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <label className="block text-xs font-semibold text-slate-300">
+                  Task / Meeting Title <span className="text-indigo-400">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => toggleVoiceInput('title')}
+                  aria-pressed={activeVoiceField === 'title'}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                    activeVoiceField === 'title'
+                      ? 'border-rose-500/50 bg-rose-500/10 text-rose-300'
+                      : 'border-slate-700 bg-slate-900 text-indigo-300 hover:border-indigo-500'
+                  }`}
+                >
+                  {activeVoiceField === 'title' ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                  {activeVoiceField === 'title' ? 'Stop voice input' : 'Speak title'}
+                </button>
+              </div>
               <input
                 type="text"
                 required
@@ -678,9 +802,24 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Instructions & Deliverable Requirements
-              </label>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <label className="block text-xs font-semibold text-slate-300">
+                  Instructions & Deliverable Requirements
+                </label>
+                <button
+                  type="button"
+                  onClick={() => toggleVoiceInput('description')}
+                  aria-pressed={activeVoiceField === 'description'}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                    activeVoiceField === 'description'
+                      ? 'border-rose-500/50 bg-rose-500/10 text-rose-300'
+                      : 'border-slate-700 bg-slate-900 text-indigo-300 hover:border-indigo-500'
+                  }`}
+                >
+                  {activeVoiceField === 'description' ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+                  {activeVoiceField === 'description' ? 'Stop voice input' : 'Speak instructions'}
+                </button>
+              </div>
               <textarea
                 rows={2}
                 value={description}
@@ -689,6 +828,17 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
+            {activeVoiceField && (
+              <p role="status" className="text-xs text-indigo-300">
+                Listening for {activeVoiceField === 'title' ? 'the task title' : 'task instructions'}… Speak clearly, then select Stop voice input.
+              </p>
+            )}
+            <p className="text-[11px] text-slate-500">
+              Voice input needs a supported browser, microphone permission, and an internet connection.
+            </p>
+            {voiceError && (
+              <p role="alert" className="text-xs text-rose-300">{voiceError}</p>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
