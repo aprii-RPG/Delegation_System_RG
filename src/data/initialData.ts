@@ -9,7 +9,6 @@ export const OWNER_USER: TeamMember = {
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   accentColor: '#6366f1',
   isOwner: true,
-  password: '55555',
 };
 
 export const TEAM_MEMBERS: TeamMember[] = [
@@ -21,7 +20,6 @@ export const TEAM_MEMBERS: TeamMember[] = [
     department: 'Operations',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     accentColor: '#3b82f6',
-    password: 'password123',
   },
   {
     id: 'doer-2',
@@ -31,7 +29,6 @@ export const TEAM_MEMBERS: TeamMember[] = [
     department: 'Marketing',
     avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
     accentColor: '#ec4899',
-    password: 'password123',
   },
   {
     id: 'doer-3',
@@ -41,7 +38,6 @@ export const TEAM_MEMBERS: TeamMember[] = [
     department: 'Engineering',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
     accentColor: '#10b981',
-    password: 'password123',
   },
   {
     id: 'doer-4',
@@ -51,7 +47,6 @@ export const TEAM_MEMBERS: TeamMember[] = [
     department: 'Finance',
     avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
     accentColor: '#f59e0b',
-    password: 'password123',
   },
 ];
 

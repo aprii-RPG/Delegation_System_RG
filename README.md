@@ -1,6 +1,6 @@
 # DelegateOS — Executive Delegation & Verification System
 
-DelegateOS is a production-ready delegation and accountability management system built for executive teams and office workflows. It features a strict 3-tier delegation hierarchy, image proof inspections, review-and-correction loops, and employee data privacy.
+DelegateOS is a React/Vite task delegation application using Supabase Auth and PostgreSQL for shared accounts, tasks, and notifications. Review and test its access policies before using sensitive business data.
 
 ---
 
@@ -21,15 +21,15 @@ DelegateOS is a production-ready delegation and accountability management system
 - **Role-Based Access Control (RBAC)**:
   - **Owner (Admin)**: Full system access across all tasks, employee scorecards, credential vaults, and export tools.
   - **Employee (Doer)**: Strictly isolated workspace. Employees only see tasks assigned to them (Primary, Secondary, or Sub-Secondary). Other employees' tasks are completely hidden.
-- **Admin Credential & Password Vault**:
-  - View all employee IDs and reveal passwords.
-  - Reset or generate strong passwords for any team member.
-  - Add new office employees.
+- **Supabase Authentication**:
+  - Employees sign in using accounts managed by Supabase Auth.
+  - Administrators invite employees through a server-side Supabase Edge Function.
+  - Passwords are never stored or exported by the application.
 - **Data Extraction & Backup**:
   - 1-Click JSON full database backup.
   - 1-Click CSV export for Microsoft Excel / Google Sheets.
-  - 1-Click employee credential directory export.
-  - JSON database restore/migration.
+  - Employee roster export excludes passwords.
+  - Task JSON import maps old employee IDs by email to existing Supabase profiles.
 
 ---
 
@@ -39,6 +39,7 @@ DelegateOS is a production-ready delegation and accountability management system
 - **Bundler**: Vite 8
 - **Styling**: Tailwind CSS v4
 - **Icons**: Lucide React
+- **Database & Auth**: Supabase
 - **Hosting Ready**: Vercel, Netlify, Cloud Run, Firebase Hosting
 
 ---
@@ -56,6 +57,33 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Supabase Configuration
+
+1. Copy the project URL and publishable key from the Supabase project’s **Connect** panel.
+2. Create `.env.local` in the project root:
+
+   ```env
+   VITE_SUPABASE_URL=https://your-project-id.supabase.co
+   VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+   ```
+
+3. Apply the SQL migrations in `supabase/migrations` in filename order using the Supabase SQL Editor. Existing projects that already applied migration `202610150001_initial_schema.sql` should apply `202610150002_application_data.sql`.
+4. Deploy the `invite-employee` Edge Function. From a terminal in the project folder, install/use the Supabase CLI, log in, link the project, then deploy:
+
+   ```powershell
+   npx supabase login
+   npx supabase link --project-ref your-project-ref
+   npx supabase functions deploy invite-employee
+   ```
+
+   The function uses Supabase’s server-side environment variables; never add the service-role key to the Vite app or Vercel frontend variables.
+5. In Supabase **Authentication → URL Configuration**, set the site URL and allow the local and deployed app URLs as redirect URLs so invite links return to the app.
+6. Create the first user in **Authentication → Users**, then grant the admin role through the SQL Editor. Do not set role permissions from browser code.
+
+The free Supabase plan can pause projects after a period of inactivity. Check current plan limits and availability needs before production use.
+
+Existing browser Local Storage data is not uploaded automatically. To migrate tasks, export a JSON backup from the old app, create matching employee accounts in Supabase first, then import the backup from the admin data tool. Profile and authentication records are not imported from the JSON file.
+
 ### 3. Build for Production
 ```bash
 npm run build
@@ -63,18 +91,6 @@ npm run build
 The production bundle will be generated in the `dist/` directory.
 
 ---
-
-## 🔑 Initial Default Credentials
-
-| Role | Email | Password | Scope |
-| :--- | :--- | :--- | :--- |
-| **Owner / Admin** | `david.owner@enterprise.co` | `password123` | Full Admin (All Tasks & Vault) |
-| **Operations Lead** | `alex.j@enterprise.co` | `password123` | Restricted to Alex's tasks |
-| **Marketing Lead** | `sarah.lin@enterprise.co` | `password123` | Restricted to Sarah's tasks |
-| **Systems Architect** | `marcus.v@enterprise.co` | `password123` | Restricted to Marcus's tasks |
-| **Finance Director** | `priya.p@enterprise.co` | `password123` | Restricted to Priya's tasks |
-
-*Note: All passwords and emails can be modified or reset anytime by the Admin in the in-app Credential Vault.*
 
 ---
 
@@ -84,5 +100,5 @@ The production bundle will be generated in the `dist/` directory.
 2. Sign in to [Vercel](https://vercel.com) and click **"Add New..." → "Project"**.
 3. Select your GitHub repository.
 4. Framework preset will automatically be set to **Vite**.
-5. Click **Deploy**.
+5. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` under **Project Settings → Environment Variables**, then click **Deploy**.
 6. Under **Project Settings → Domains**, add your custom domain (e.g. `delegation.yourcompany.com`).

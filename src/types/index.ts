@@ -22,6 +22,7 @@ export interface RecurrenceConfig {
 
 export interface TeamMember {
   id: string;
+  authUserId?: string;
   name: string;
   email: string;
   roleTitle: string;
@@ -29,7 +30,6 @@ export interface TeamMember {
   avatar: string;
   accentColor: string;
   isOwner?: boolean;
-  password?: string;
 }
 
 export interface ProofSubmission {

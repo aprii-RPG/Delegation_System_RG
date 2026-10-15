@@ -2,19 +2,13 @@ import React, { useState } from 'react';
 import {
   X,
   KeyRound,
-  Eye,
-  EyeOff,
-  Copy,
   Check,
   Plus,
   Shield,
   User,
   Edit2,
   Trash2,
-  Sparkles,
-  AlertCircle,
   Save,
-  RefreshCw,
   Camera,
   Upload,
   ImageIcon,
@@ -36,85 +30,48 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
     deleteTeamMember,
   } = useTasks();
 
-  // Reveal password state for each user id
-  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
   // Dedicated Avatar Modal state
   const [selectedUserForAvatar, setSelectedUserForAvatar] = useState<TeamMember | null>(null);
 
   // Edit modal state
   const [editingUser, setEditingUser] = useState<TeamMember | null>(null);
   const [editName, setEditName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editPassword, setEditPassword] = useState('');
   const [editRole, setEditRole] = useState('');
   const [editDepartment, setEditDepartment] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
-  const [showEditPassword, setShowEditPassword] = useState(false);
 
   // Add new employee state
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('Office#2026');
   const [newRole, setNewRole] = useState('');
   const [newDepartment, setNewDepartment] = useState('Operations');
   const [newAvatar, setNewAvatar] = useState(PRESET_AVATARS[0].url);
 
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
 
-  const togglePasswordReveal = (id: string) => {
-    setRevealedPasswords((prev) => ({ ...prev, [id]: !prev[id] }));
-  };
-
-  const handleCopyPassword = (id: string, pass: string) => {
-    navigator.clipboard.writeText(pass);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
   const handleStartEdit = (user: TeamMember) => {
     setEditingUser(user);
     setEditName(user.name);
-    setEditEmail(user.email);
-    setEditPassword(user.password || 'password123');
     setEditRole(user.roleTitle);
     setEditDepartment(user.department);
     setEditAvatar(user.avatar);
-    setShowEditPassword(false);
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
 
-    if (!editEmail.trim() || !editPassword.trim()) {
-      alert('Email and Password cannot be empty.');
-      return;
-    }
-
     updateUserCredentials(editingUser.id, {
       name: editName.trim(),
-      email: editEmail.trim(),
-      password: editPassword.trim(),
       roleTitle: editRole.trim(),
       department: editDepartment.trim(),
       avatar: editAvatar.trim() || editingUser.avatar,
     });
 
-    setNotificationMsg(`Credentials & profile for ${editName} updated successfully!`);
+    setNotificationMsg(`Profile for ${editName} updated successfully.`);
     setEditingUser(null);
     setTimeout(() => setNotificationMsg(null), 3000);
-  };
-
-  const handleGeneratePassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
-    let result = '';
-    for (let i = 0; i < 10; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setEditPassword(`Staff#${result}`);
   };
 
   // Handle local file upload in edit modal
@@ -145,22 +102,26 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
     }
   };
 
-  const handleAddNewSubmit = (e: React.FormEvent) => {
+  const handleAddNewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || !newEmail.trim() || !newPassword.trim()) {
-      alert('Name, Email, and Password are required.');
+    if (!newName.trim() || !newEmail.trim()) {
+      alert('Name and email are required.');
       return;
     }
 
-    addNewTeamMember({
-      name: newName.trim(),
-      email: newEmail.trim(),
-      password: newPassword.trim(),
-      roleTitle: newRole.trim() || 'Team Specialist',
-      department: newDepartment.trim() || 'Operations',
-      avatar: newAvatar || PRESET_AVATARS[0].url,
-      accentColor: '#3b82f6',
-    });
+    try {
+      await addNewTeamMember({
+        name: newName.trim(),
+        email: newEmail.trim(),
+        roleTitle: newRole.trim() || 'Team Specialist',
+        department: newDepartment.trim() || 'Operations',
+        avatar: newAvatar || PRESET_AVATARS[0].url,
+        accentColor: '#3b82f6',
+      });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Employee invitation failed.');
+      return;
+    }
 
     setNotificationMsg(`New employee ${newName} added successfully!`);
     setIsAddingNew(false);
@@ -185,14 +146,14 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
-                  EXECUTIVE CREDENTIAL & PROFILE VAULT
+                  EMPLOYEE PROFILE MANAGEMENT
                 </span>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono font-bold">
                   ADMIN AUTHORITY
                 </span>
               </div>
               <h2 className="text-lg font-bold text-white">
-                Team Passwords, IDs & Avatar Customization
+                Employee Accounts & Profiles
               </h2>
             </div>
           </div>
@@ -220,10 +181,10 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
               <Shield className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
               <div>
                 <h4 className="font-bold text-white text-sm">
-                  Administrator Authority & Credential Governance
+                  Employee Profile Administration
                 </h4>
                 <p className="text-slate-400 mt-0.5 leading-relaxed">
-                  As the Owner, you have complete authority to view all employee IDs, reveal their passwords, set or reset credentials, and customize avatars and profile photos according to your office needs.
+                  Invite employees by email. Supabase sends them a secure sign-up link; passwords are never stored or visible in DelegateOS.
                 </p>
               </div>
             </div>
@@ -244,14 +205,12 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
                 Registered Team Accounts ({allAccounts.length})
               </span>
               <span className="text-[11px] text-slate-500">
-                Click any avatar to change photo • Click eye to reveal password
+                Account credentials are securely managed by Supabase Auth.
               </span>
             </div>
 
             <div className="divide-y divide-slate-800/80">
               {allAccounts.map((member) => {
-                const isRevealed = revealedPasswords[member.id] || false;
-                const isCopied = copiedId === member.id;
                 const isOwner = member.isOwner || member.id === ownerUser.id;
 
                 return (
@@ -310,7 +269,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
                       </div>
                     </div>
 
-                    {/* Password Vault & Controls */}
+                    {/* Profile Controls */}
                     <div className="flex items-center space-x-2.5">
                       {/* Change Avatar Button */}
                       <button
@@ -322,29 +281,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
                         <span className="hidden sm:inline">Photo</span>
                       </button>
 
-                      {/* Password Box */}
-                      <div className="bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800 flex items-center space-x-2">
-                        <span className="text-[10px] text-slate-500 uppercase font-mono">PWD:</span>
-                        <span className="text-xs font-mono text-slate-200 min-w-24 text-left">
-                          {isRevealed ? member.password || 'password123' : '••••••••••••'}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => togglePasswordReveal(member.id)}
-                          className="text-slate-400 hover:text-white p-1 rounded"
-                          title={isRevealed ? 'Hide Password' : 'Show Password'}
-                        >
-                          {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyPassword(member.id, member.password || 'password123')}
-                          className="text-slate-400 hover:text-indigo-400 p-1 rounded"
-                          title="Copy Password"
-                        >
-                          {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
+                      <span className="text-[10px] text-slate-500">Supabase Auth</span>
 
                       {/* Reset / Edit Button */}
                       <button
@@ -358,9 +295,14 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
                       {/* Delete button (Only for added employees, not Owner) */}
                       {!isOwner && (
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             if (confirm(`Are you sure you want to remove ${member.name}?`)) {
-                              deleteTeamMember(member.id);
+                              try {
+                                await deleteTeamMember(member.id);
+                                setNotificationMsg(`${member.name}'s account was removed.`);
+                              } catch (error) {
+                                alert(error instanceof Error ? error.message : 'Could not remove employee account.');
+                              }
                             }
                           }}
                           className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
@@ -407,7 +349,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
               <div className="flex items-center space-x-2">
                 <Edit2 className="w-4 h-4 text-indigo-400" />
                 <h3 className="text-base font-bold text-white">
-                  Edit Profile & Credentials: {editingUser.name}
+                  Edit Profile: {editingUser.name}
                 </h3>
               </div>
               <button
@@ -493,46 +435,11 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Email ID (Login Username)
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={editEmail}
-                  onChange={(e) => setEditEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-300 font-semibold">Password</label>
-                  <button
-                    type="button"
-                    onClick={handleGeneratePassword}
-                    className="text-indigo-400 hover:text-indigo-300 flex items-center space-x-1"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    <span>Generate Strong Password</span>
-                  </button>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showEditPassword ? 'text' : 'password'}
-                    required
-                    value={editPassword}
-                    onChange={(e) => setEditPassword(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-3 pr-10 py-2 text-white font-mono focus:outline-none focus:border-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowEditPassword(!showEditPassword)}
-                    className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300"
-                  >
-                    {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                <label className="block text-slate-300 font-semibold mb-1">Login Email</label>
+                <p className="text-indigo-300 font-mono">{editingUser.email}</p>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Login email and password are handled by Supabase Auth.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -680,18 +587,9 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Initial Password
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-indigo-500"
-                />
-              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Supabase will email a secure invitation link. The employee sets their own password.
+              </p>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -729,7 +627,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClos
                   className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center space-x-1.5 shadow-md shadow-indigo-600/30"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Create Account</span>
+                  <span>Send Invitation</span>
                 </button>
               </div>
             </form>

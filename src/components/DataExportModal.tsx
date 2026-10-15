@@ -63,7 +63,7 @@ export const DataExportModal: React.FC<DataExportModalProps> = ({ onClose }) => 
   const handleDownloadUsersCSV = () => {
     const csv = exportUsersCSV();
     const dateStr = new Date().toISOString().split('T')[0];
-    downloadFile(csv, `delegateos_users_credentials_${dateStr}.csv`, 'text/csv');
+    downloadFile(csv, `delegateos_employee_roster_${dateStr}.csv`, 'text/csv');
   };
 
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -224,15 +224,15 @@ export const DataExportModal: React.FC<DataExportModalProps> = ({ onClose }) => 
                   </button>
                 </div>
 
-                {/* 3. Users & Passwords CSV */}
+                {/* 3. Employee Roster CSV */}
                 <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col justify-between space-y-4 hover:border-slate-700 transition-all">
                   <div>
                     <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 mb-3">
                       <FileText className="w-5 h-5" />
                     </div>
-                    <h5 className="font-bold text-white text-sm">Credentials Directory CSV</h5>
+                    <h5 className="font-bold text-white text-sm">Employee Roster CSV</h5>
                     <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                      Corporate office roster with all employee IDs, names, departments, access levels, and current passwords.
+                      Employee IDs, names, departments, access levels, and login emails. Passwords are never exported.
                     </p>
                   </div>
                   <button

@@ -3,22 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import { TaskProvider, useTasks } from './context/TaskContext';
 import { Navbar } from './components/Navbar';
-import { LoginScreen } from './components/LoginScreen';
-import { AdminDashboard } from './components/AdminDashboard';
-import { DoerPortal } from './components/DoerPortal';
-import { VerifyModal } from './components/VerifyModal';
-import { SubmitProofModal } from './components/SubmitProofModal';
-import { TaskDetailModal } from './components/TaskDetailModal';
-import { CreateTaskModal } from './components/CreateTaskModal';
-import { NotificationsModal } from './components/NotificationsModal';
-import { DoerScorecardsModal } from './components/DoerScorecardsModal';
-import { UserManagementModal } from './components/UserManagementModal';
-import { DataExportModal } from './components/DataExportModal';
-import { EditAvatarModal } from './components/EditAvatarModal';
-import { SendMeetingLinkModal } from './components/SendMeetingLinkModal';
 import { Task, TeamMember } from './types';
 import {
   Shield,
@@ -35,15 +22,56 @@ import {
   Download,
 } from 'lucide-react';
 
+const LoginScreen = lazy(() =>
+  import('./components/LoginScreen').then((module) => ({ default: module.LoginScreen }))
+);
+const AdminDashboard = lazy(() =>
+  import('./components/AdminDashboard').then((module) => ({ default: module.AdminDashboard }))
+);
+const DoerPortal = lazy(() =>
+  import('./components/DoerPortal').then((module) => ({ default: module.DoerPortal }))
+);
+const VerifyModal = lazy(() =>
+  import('./components/VerifyModal').then((module) => ({ default: module.VerifyModal }))
+);
+const SubmitProofModal = lazy(() =>
+  import('./components/SubmitProofModal').then((module) => ({ default: module.SubmitProofModal }))
+);
+const TaskDetailModal = lazy(() =>
+  import('./components/TaskDetailModal').then((module) => ({ default: module.TaskDetailModal }))
+);
+const CreateTaskModal = lazy(() =>
+  import('./components/CreateTaskModal').then((module) => ({ default: module.CreateTaskModal }))
+);
+const NotificationsModal = lazy(() =>
+  import('./components/NotificationsModal').then((module) => ({ default: module.NotificationsModal }))
+);
+const DoerScorecardsModal = lazy(() =>
+  import('./components/DoerScorecardsModal').then((module) => ({ default: module.DoerScorecardsModal }))
+);
+const UserManagementModal = lazy(() =>
+  import('./components/UserManagementModal').then((module) => ({ default: module.UserManagementModal }))
+);
+const DataExportModal = lazy(() =>
+  import('./components/DataExportModal').then((module) => ({ default: module.DataExportModal }))
+);
+const EditAvatarModal = lazy(() =>
+  import('./components/EditAvatarModal').then((module) => ({ default: module.EditAvatarModal }))
+);
+const SendMeetingLinkModal = lazy(() =>
+  import('./components/SendMeetingLinkModal').then((module) => ({ default: module.SendMeetingLinkModal }))
+);
+
 const MainContent: React.FC = () => {
   const {
     currentUser,
-    setCurrentUser,
     ownerUser,
     teamMembers,
     tasks,
     allTasks,
     isAuthenticated,
+    isLoading,
+    dataError,
     logout,
   } = useTasks();
 
@@ -59,9 +87,27 @@ const MainContent: React.FC = () => {
   const [taskForMeetingLink, setTaskForMeetingLink] = useState<Task | null>(null);
   const [avatarUserModal, setAvatarUserModal] = useState<TeamMember | null>(null);
 
-  // If not authenticated, show corporate login screen first
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-300 text-sm">
+        Connecting securely to DelegateOS…
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
-    return <LoginScreen />;
+    return (
+      <>
+        {dataError && (
+          <div role="alert" className="bg-rose-950 text-rose-200 px-4 py-3 text-sm text-center">
+            {dataError}
+          </div>
+        )}
+        <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
+          <LoginScreen />
+        </Suspense>
+      </>
+    );
   }
 
   // Fast switch to another task from notification
@@ -76,7 +122,13 @@ const MainContent: React.FC = () => {
   };
 
   return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-300 text-sm">Loading workspace…</div>}>
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white pb-20">
+      {dataError && (
+        <div role="alert" className="bg-rose-950 text-rose-200 px-4 py-3 text-sm text-center">
+          {dataError}
+        </div>
+      )}
       {/* Top Navigation */}
       <Navbar
         onOpenCreateTask={() => setIsCreateTaskOpen(true)}
@@ -100,7 +152,7 @@ const MainContent: React.FC = () => {
                 <Shield className="w-4 h-4 text-indigo-400 shrink-0" />
                 <span className="font-bold text-white">Owner Administrator Session:</span>
                 <span className="text-indigo-300">
-                  Full visibility active. Viewing all {allTasks.length} organization tasks & all 4 employees.
+                  Full visibility active. Viewing all {allTasks.length} organization tasks and {teamMembers.length} employees.
                 </span>
               </>
             ) : (
@@ -231,6 +283,7 @@ const MainContent: React.FC = () => {
         />
       )}
     </div>
+    </Suspense>
   );
 };
 

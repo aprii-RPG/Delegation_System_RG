@@ -4,7 +4,6 @@ import {
   User,
   Bell,
   Plus,
-  RotateCcw,
   Sparkles,
   ChevronDown,
   CheckCircle,
@@ -39,17 +38,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const {
     currentUser,
-    ownerUser,
-    teamMembers,
-    setCurrentUser,
     unreadNotificationCount,
-    resetToDefaultData,
     tasks,
     logout,
   } = useTasks();
 
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Compute urgent correction alerts for doers
   const myCorrectionCount = tasks.filter(
@@ -111,17 +105,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* Create Task Button (Available to Owner, or Doer for self-delegation) */}
-            <button
-              onClick={onOpenCreateTask}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">New Delegation</span>
-              <span className="sm:hidden">New</span>
-            </button>
+            {currentUser.isOwner && (
+              <button
+                onClick={onOpenCreateTask}
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">New Delegation</span>
+                <span className="sm:hidden">New</span>
+              </button>
+            )}
 
-            {/* Active Role Switcher (Crucial for testing both Owner & 4 Doers) */}
+            {/* Signed-in account menu */}
             <div className="relative">
               <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -227,7 +222,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div className="text-[11px] bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
                         {currentUser.isOwner ? (
                           <span className="text-indigo-300 font-medium block">
-                            👑 Full Admin: All organization tasks & 4 employees visible.
+                            👑 Administrator account.
                           </span>
                         ) : (
                           <span className="text-emerald-300 font-medium block">
@@ -249,7 +244,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                             className="w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-200 hover:text-white hover:bg-slate-800 transition-colors text-left"
                           >
                             <KeyRound className="w-4 h-4 text-indigo-400 shrink-0" />
-                            <span>Team Passwords & Vault</span>
+                            <span>Manage Employees</span>
                           </button>
                         )}
                         {onOpenDataExport && (
@@ -267,7 +262,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
                     )}
 
-                    {/* Actions: Sign Out & Reset */}
+                    {/* Account actions */}
                     <div className="p-2 space-y-1.5">
                       <button
                         onClick={() => {
@@ -278,14 +273,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       >
                         <LogOut className="w-3.5 h-3.5" />
                         <span>Sign Out (Switch Account)</span>
-                      </button>
-
-                      <button
-                        onClick={() => setShowResetConfirm(true)}
-                        className="w-full flex items-center justify-center space-x-1.5 py-1.5 text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>Reset to Demo Data</span>
                       </button>
                     </div>
                   </div>
@@ -306,35 +293,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Reset Confirmation Dialog */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 max-w-sm w-full shadow-2xl">
-            <h3 className="text-base font-bold text-white mb-2">Reset Demo State?</h3>
-            <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-              This will restore all default tasks (including pending verification proof, correction alerts, and scorecards) to their initial state.
-            </p>
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  resetToDefaultData();
-                  setShowResetConfirm(false);
-                  setIsUserMenuOpen(false);
-                }}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white"
-              >
-                Yes, Reset Data
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 };

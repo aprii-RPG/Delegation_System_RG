@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import {
   Task,
   TeamMember,
@@ -13,10 +13,8 @@ import {
 } from '../types';
 import {
   OWNER_USER,
-  TEAM_MEMBERS,
-  INITIAL_TASKS,
-  INITIAL_NOTIFICATIONS,
 } from '../data/initialData';
+import { supabase } from '../lib/supabase';
 
 interface TaskContextType {
   tasks: Task[]; // Visible tasks strictly filtered by logged-in role
@@ -25,20 +23,20 @@ interface TaskContextType {
   ownerUser: TeamMember;
   currentUser: TeamMember;
   isAuthenticated: boolean;
+  isLoading: boolean;
+  dataError: string | null;
   notifications: NotificationItem[]; // Visible notifications strictly filtered by logged-in role
   unreadNotificationCount: number;
   doerScorecards: DoerScorecard[];
   
   // Auth & Session
-  login: (email: string, password?: string) => { success: boolean; error?: string };
-  quickLogin: (userId: string) => void;
-  logout: () => void;
-  setCurrentUser: (member: TeamMember) => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
   
   // Admin User & Credential Management
   updateUserCredentials: (userId: string, updates: Partial<TeamMember>) => void;
-  addNewTeamMember: (newMember: Omit<TeamMember, 'id'>) => TeamMember;
-  deleteTeamMember: (userId: string) => void;
+  addNewTeamMember: (newMember: Omit<TeamMember, 'id' | 'authUserId'>) => Promise<TeamMember>;
+  deleteTeamMember: (userId: string) => Promise<void>;
   
   // Data Extraction & Backup
   exportAllDataJSON: () => string;
@@ -85,83 +83,39 @@ interface TaskContextType {
   markAllNotificationsRead: () => void;
   clearNotifications: () => void;
   
-  // Reset
-  resetToDefaultData: () => void;
 }
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
-const STORAGE_KEYS = {
-  TASKS: 'delegate_os_tasks_v3',
-  NOTIFICATIONS: 'delegate_os_notifications_v3',
-  AUTH_USER_ID: 'delegate_os_auth_user_v3',
-  IS_AUTHENTICATED: 'delegate_os_is_authenticated_v3',
-  OWNER_USER: 'delegate_os_owner_user_v3',
-  TEAM_MEMBERS: 'delegate_os_team_members_v3',
-};
+interface DatabaseProfile {
+  id: string;
+  employee_id: string;
+  email: string;
+  full_name: string;
+  app_role: 'admin' | 'employee';
+  data: {
+    roleTitle?: string;
+    department?: string;
+    avatar?: string;
+    accentColor?: string;
+  } | null;
+}
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Owner user state (persisted)
-  const [ownerUser, setOwnerUser] = useState<TeamMember>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.OWNER_USER);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to load owner from storage', e);
-    }
-    return OWNER_USER;
-  });
-
-  // Team members state (persisted)
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TEAM_MEMBERS);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to load team members from storage', e);
-    }
-    return TEAM_MEMBERS;
-  });
-
-  // Tasks state (persisted)
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.TASKS);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to load tasks from local storage', e);
-    }
-    return INITIAL_TASKS;
-  });
-
-  // Notifications state (persisted)
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error('Failed to load notifications from local storage', e);
-    }
-    return INITIAL_NOTIFICATIONS;
-  });
-
-  // Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      const savedAuth = localStorage.getItem(STORAGE_KEYS.IS_AUTHENTICATED);
-      return savedAuth === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    try {
-      return localStorage.getItem(STORAGE_KEYS.AUTH_USER_ID) || OWNER_USER.id;
-    } catch {
-      return OWNER_USER.id;
-    }
-  });
+  const [ownerUser, setOwnerUser] = useState<TeamMember>(OWNER_USER);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string>(OWNER_USER.id);
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
+  const [dataReady, setDataReady] = useState(false);
+  const previousTasks = useRef<Task[] | null>(null);
+  const previousNotifications = useRef<NotificationItem[] | null>(null);
+  const previousProfiles = useRef<TeamMember[] | null>(null);
+  const persistenceQueue = useRef<Promise<void>>(Promise.resolve());
 
   // Current active user object
   const currentUser = useMemo(() => {
@@ -170,113 +124,335 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return found || ownerUser;
   }, [currentUserId, ownerUser, teamMembers]);
 
-  // Persist all state slices
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.OWNER_USER, JSON.stringify(ownerUser));
-    } catch (e) {
-      console.error('Failed to persist owner user', e);
-    }
-  }, [ownerUser]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.TEAM_MEMBERS, JSON.stringify(teamMembers));
-    } catch (e) {
-      console.error('Failed to persist team members', e);
-    }
-  }, [teamMembers]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks));
-    } catch (e) {
-      console.error('Failed to persist tasks', e);
-    }
-  }, [tasks]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
-    } catch (e) {
-      console.error('Failed to persist notifications', e);
-    }
-  }, [notifications]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.AUTH_USER_ID, currentUserId);
-      localStorage.setItem(STORAGE_KEYS.IS_AUTHENTICATED, isAuthenticated ? 'true' : 'false');
-    } catch (e) {
-      console.error('Failed to persist auth status', e);
-    }
-  }, [currentUserId, isAuthenticated]);
-
-  // Login handler using dynamic credentials
-  const login = (email: string, password?: string): { success: boolean; error?: string } => {
-    const cleanEmail = email.trim().toLowerCase();
-    
-    // Check owner
-    if (cleanEmail === ownerUser.email.toLowerCase() || cleanEmail === 'owner@delegateos.com' || cleanEmail === 'owner') {
-      if (password && password !== ownerUser.password && password !== 'password123') {
-        return { success: false, error: 'Incorrect password for Owner account.' };
+    let active = true;
+    const applySession = (userId: string | null) => {
+      setAuthUserId(userId);
+      if (!userId) {
+        setDataReady(false);
+        setIsAuthenticated(false);
+        setDataError(null);
+        setCurrentUserId(OWNER_USER.id);
+        setOwnerUser(OWNER_USER);
+        setTeamMembers([]);
+        setTasks([]);
+        setNotifications([]);
+        previousTasks.current = null;
+        previousNotifications.current = null;
+        previousProfiles.current = null;
       }
-      setCurrentUserId(ownerUser.id);
-      setIsAuthenticated(true);
-      return { success: true };
-    }
-
-    // Check team members
-    const matched = teamMembers.find(
-      (m) =>
-        m.email.toLowerCase() === cleanEmail ||
-        m.name.toLowerCase().split(' ')[0] === cleanEmail
-    );
-
-    if (matched) {
-      if (password && password !== matched.password && password !== 'password123') {
-        return { success: false, error: `Incorrect password for ${matched.name}.` };
-      }
-      setCurrentUserId(matched.id);
-      setIsAuthenticated(true);
-      return { success: true };
-    }
-
-    return {
-      success: false,
-      error: 'Account not found. Please verify your email or contact the administrator.',
     };
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+      if (error) {
+        setDataError(error.message);
+        setIsLoading(false);
+        return;
+      }
+      applySession(data.session?.user.id ?? null);
+      if (!data.session) setIsLoading(false);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) applySession(session?.user.id ?? null);
+    });
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authUserId) return;
+    let active = true;
+    setIsLoading(true);
+    setDataReady(false);
+
+    const loadRemoteData = async () => {
+      const [profilesResult, tasksResult, notificationsResult] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, employee_id, email, full_name, app_role, data')
+          .order('full_name'),
+        supabase.from('tasks').select('id, data'),
+        supabase.from('notifications').select('id, recipient_employee_id, data'),
+      ]);
+      const failedResult = [profilesResult, tasksResult, notificationsResult].find(
+        (result) => result.error
+      );
+      if (failedResult?.error) throw failedResult.error;
+      if (!active) return;
+
+      const profiles = (profilesResult.data || []) as DatabaseProfile[];
+      const members = profiles.map((profile): TeamMember => ({
+        id: profile.employee_id,
+        authUserId: profile.id,
+        name: profile.full_name || (profile.app_role === 'admin' ? OWNER_USER.name : profile.email.split('@')[0]),
+        email: profile.email,
+        roleTitle: profile.data?.roleTitle || (profile.app_role === 'admin' ? 'Owner & Administrator' : 'Team Specialist'),
+        department: profile.data?.department || 'Operations',
+        avatar: profile.data?.avatar || (profile.app_role === 'admin' ? OWNER_USER.avatar : ''),
+        accentColor: profile.data?.accentColor || '#6366f1',
+        isOwner: profile.app_role === 'admin',
+      }));
+      const owner = members.find((member) => member.isOwner);
+      const employees = members.filter((member) => !member.isOwner);
+      const loadedTasks = ((tasksResult.data || []) as Array<{ id: string; data: Task }>)
+        .map((row) => row.data);
+      const loadedNotifications = ((notificationsResult.data || []) as Array<{
+        id: string;
+        recipient_employee_id: string;
+        data: NotificationItem;
+      }>).map((row) => ({ ...row.data, id: row.id, recipientId: row.recipient_employee_id }));
+      const activeMember = members.find((member) => member.authUserId === authUserId);
+      if (!activeMember) {
+        throw new Error('Your signed-in account has no DelegateOS profile. Contact the administrator.');
+      }
+
+      setOwnerUser(owner || OWNER_USER);
+      setTeamMembers(employees);
+      setTasks(loadedTasks);
+      setNotifications(loadedNotifications);
+      setCurrentUserId(activeMember.id);
+      setIsAuthenticated(true);
+      setDataError(null);
+      previousTasks.current = loadedTasks;
+      previousNotifications.current = loadedNotifications;
+      previousProfiles.current = members;
+      setDataReady(true);
+    };
+
+    loadRemoteData()
+      .catch((error: unknown) => {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : 'Unable to load data from Supabase.';
+        setDataError(message);
+        setIsAuthenticated(false);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [authUserId]);
+
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
   };
 
-  const quickLogin = (userId: string) => {
-    if (userId === ownerUser.id) {
-      setCurrentUserId(ownerUser.id);
-      setIsAuthenticated(true);
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) setDataError(`Sign out failed: ${error.message}`);
+  };
+
+  useEffect(() => {
+    if (!dataReady) return;
+    if (!previousTasks.current) {
+      previousTasks.current = tasks;
       return;
     }
-    const found = teamMembers.find((m) => m.id === userId);
-    if (found) {
-      setCurrentUserId(found.id);
-      setIsAuthenticated(true);
+
+    const previousById = new Map(previousTasks.current.map((task) => [task.id, task]));
+    const currentById = new Map(tasks.map((task) => [task.id, task]));
+    const saveChanges = async () => {
+      const writes = tasks
+        .filter((task) => JSON.stringify(previousById.get(task.id)) !== JSON.stringify(task))
+        .map(async (task) => {
+          const assigneeEmployeeIds = getTaskAssigneeIds(task);
+          const previous = previousById.get(task.id);
+          const query = previous
+            ? supabase
+                .from('tasks')
+                .update({ data: task, assignee_employee_ids: assigneeEmployeeIds })
+                .eq('id', task.id)
+            : supabase.from('tasks').insert({
+                id: task.id,
+                data: task,
+                assignee_employee_ids: assigneeEmployeeIds,
+                created_by: authUserId,
+              });
+          const { error } = await query;
+          if (error) throw error;
+        });
+      for (const taskId of previousById.keys()) {
+        if (!currentById.has(taskId)) {
+          const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+          if (error) throw error;
+        }
+      }
+      await Promise.all(writes);
+    };
+
+    previousTasks.current = tasks;
+    persistenceQueue.current = persistenceQueue.current
+      .then(saveChanges)
+      .catch((error: unknown) => {
+        setDataError(`Task save failed: ${error instanceof Error ? error.message : String(error)}`);
+      });
+  }, [tasks, dataReady, authUserId]);
+
+  useEffect(() => {
+    if (!dataReady) return;
+    if (!previousNotifications.current) {
+      previousNotifications.current = notifications;
+      return;
     }
-  };
 
-  const logout = () => {
-    setIsAuthenticated(false);
-    try {
-      localStorage.setItem(STORAGE_KEYS.IS_AUTHENTICATED, 'false');
-    } catch (e) {
-      console.error(e);
+    const previousById = new Map(previousNotifications.current.map((item) => [item.id, item]));
+    const currentById = new Map(notifications.map((item) => [item.id, item]));
+    const saveChanges = async () => {
+      const writes = notifications
+        .filter((item) => JSON.stringify(previousById.get(item.id)) !== JSON.stringify(item))
+        .map(async (item) => {
+          const previous = previousById.get(item.id);
+          const result = previous
+            ? await supabase
+                .from('notifications')
+                .update({ data: item, recipient_employee_id: item.recipientId })
+                .eq('id', item.id)
+            : await supabase.from('notifications').insert({
+                id: item.id,
+                recipient_employee_id: item.recipientId,
+                data: item,
+              });
+          if (result.error) throw result.error;
+        });
+      for (const id of previousById.keys()) {
+        if (!currentById.has(id)) {
+          const { error } = await supabase.from('notifications').delete().eq('id', id);
+          if (error) throw error;
+        }
+      }
+      await Promise.all(writes);
+    };
+
+    previousNotifications.current = notifications;
+    persistenceQueue.current = persistenceQueue.current
+      .then(saveChanges)
+      .catch((error: unknown) => {
+        setDataError(`Notification save failed: ${error instanceof Error ? error.message : String(error)}`);
+      });
+  }, [notifications, dataReady]);
+
+  useEffect(() => {
+    if (!dataReady) return;
+    const profiles = [ownerUser, ...teamMembers];
+    if (!previousProfiles.current) {
+      previousProfiles.current = profiles;
+      return;
     }
-  };
 
-  const handleSetCurrentUser = (member: TeamMember) => {
-    setCurrentUserId(member.id);
-    setIsAuthenticated(true);
-  };
+    const previousById = new Map(previousProfiles.current.map((member) => [member.id, member]));
+    const changed = profiles.filter(
+      (member) => JSON.stringify(previousById.get(member.id)) !== JSON.stringify(member)
+    );
+    previousProfiles.current = profiles;
+    if (changed.length === 0) return;
 
-  // ADMIN CREDENTIAL MANAGEMENT: Update any employee's or owner's password, email, role
-  const updateUserCredentials = (userId: string, updates: Partial<TeamMember>) => {
+    persistenceQueue.current = persistenceQueue.current
+      .then(async () => {
+        await Promise.all(changed.map(async (member) => {
+          if (!currentUser.isOwner && member.id !== currentUser.id) return;
+          if (!member.authUserId) return;
+          const { error } = await supabase
+            .from('profiles')
+            .update({
+              full_name: member.name,
+              data: {
+                roleTitle: member.roleTitle,
+                department: member.department,
+                avatar: member.avatar,
+                accentColor: member.accentColor,
+              },
+            })
+            .eq('id', member.authUserId);
+          if (error) throw error;
+        }));
+      })
+      .catch((error: unknown) => {
+        setDataError(`Profile save failed: ${error instanceof Error ? error.message : String(error)}`);
+      });
+  }, [ownerUser, teamMembers, currentUser, dataReady]);
+
+  useEffect(() => {
+    if (!dataReady || !authUserId) return;
+    const channel = supabase
+      .channel(`delegateos-${authUserId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          const id = payload.old.id as string | undefined;
+          if (id) {
+            setTasks((previous) => {
+              const next = previous.filter((task) => task.id !== id);
+              previousTasks.current = next;
+              return next;
+            });
+          }
+          return;
+        }
+        const row = payload.new as { id: string; data: Task };
+        if (!row?.data) return;
+        setTasks((previous) => {
+          const index = previous.findIndex((task) => task.id === row.id);
+          const next = index < 0
+            ? [row.data, ...previous]
+            : previous.map((task) => (task.id === row.id ? row.data : task));
+          previousTasks.current = next;
+          return next;
+        });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          const id = payload.old.id as string | undefined;
+          if (id) {
+            setNotifications((previous) => {
+              const next = previous.filter((item) => item.id !== id);
+              previousNotifications.current = next;
+              return next;
+            });
+          }
+          return;
+        }
+        const row = payload.new as {
+          id: string;
+          recipient_employee_id: string;
+          data: NotificationItem;
+        };
+        if (!row?.data) return;
+        const item = { ...row.data, id: row.id, recipientId: row.recipient_employee_id };
+        setNotifications((previous) => {
+          const index = previous.findIndex((notification) => notification.id === row.id);
+          const next = index < 0
+            ? [item, ...previous]
+            : previous.map((notification) => (notification.id === row.id ? item : notification));
+          previousNotifications.current = next;
+          return next;
+        });
+      })
+      .subscribe((status, error) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setDataError(`Live updates unavailable: ${error?.message || status}. Refresh to reload current data.`);
+        }
+      });
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [dataReady, authUserId]);
+
+  // Profile fields are stored in Supabase; credentials remain managed by Supabase Auth.
+  const updateUserCredentials = (
+    userId: string,
+    updates: Partial<Omit<TeamMember, 'id' | 'authUserId' | 'email' | 'isOwner'>>
+  ) => {
     if (userId === ownerUser.id) {
       setOwnerUser((prev) => ({ ...prev, ...updates }));
       return;
@@ -287,25 +463,44 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
-  // ADMIN ADD NEW TEAM MEMBER
-  const addNewTeamMember = (memberData: Omit<TeamMember, 'id'>): TeamMember => {
-    const newId = `doer-${Date.now()}`;
+  // Admin invitations are created by a server-side Edge Function so no admin secret
+  // is exposed in the browser and employees set their own passwords.
+  const addNewTeamMember = async (
+    memberData: Omit<TeamMember, 'id' | 'authUserId'>
+  ): Promise<TeamMember> => {
+    const { data, error } = await supabase.functions.invoke('invite-employee', {
+      body: {
+        email: memberData.email,
+        fullName: memberData.name,
+        roleTitle: memberData.roleTitle,
+        department: memberData.department,
+        avatar: memberData.avatar,
+        accentColor: memberData.accentColor,
+      },
+    });
+    if (error) throw new Error(error.message);
+    if (!data?.employeeId || !data?.userId) {
+      throw new Error(data?.error || 'The invitation did not return an employee profile.');
+    }
     const newMember: TeamMember = {
       ...memberData,
-      id: newId,
+      id: data.employeeId,
+      authUserId: data.userId,
       accentColor: memberData.accentColor || '#6366f1',
       avatar:
         memberData.avatar ||
         `https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80`,
-      password: memberData.password || 'password123',
     };
-
     setTeamMembers((prev) => [...prev, newMember]);
     return newMember;
   };
 
-  // ADMIN DELETE TEAM MEMBER
-  const deleteTeamMember = (userId: string) => {
+  const deleteTeamMember = async (userId: string) => {
+    const { data, error } = await supabase.functions.invoke('invite-employee', {
+      body: { action: 'delete', employeeId: userId },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(data.error);
     setTeamMembers((prev) => prev.filter((m) => m.id !== userId));
   };
 
@@ -379,7 +574,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // DATA EXTRACTION: Users & Passwords CSV export
   const exportUsersCSV = (): string => {
-    const headers = ['User ID', 'Name', 'Email Address', 'Role Title', 'Department', 'Access Level', 'Current Password'];
+    const headers = ['User ID', 'Name', 'Email Address', 'Role Title', 'Department', 'Access Level'];
     const allUsers = [
       ownerUser,
       ...teamMembers,
@@ -393,32 +588,62 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         `"${u.roleTitle}"`,
         `"${u.department}"`,
         `"${u.isOwner ? 'OWNER / ADMIN' : 'EMPLOYEE / DOER'}"`,
-        `"${u.password || ''}"`,
       ].join(',');
     });
 
     return [headers.join(','), ...rows].join('\n');
   };
 
-  // DATA IMPORT & RESTORE
+  // Import task history only; auth accounts and profiles are managed separately.
   const importAllData = (jsonData: string): boolean => {
     try {
       const parsed = JSON.parse(jsonData);
-      if (parsed.tasks && Array.isArray(parsed.tasks)) {
-        setTasks(parsed.tasks);
+      if (!currentUser.isOwner) {
+        throw new Error('Only an administrator can import task data.');
       }
-      if (parsed.teamMembers && Array.isArray(parsed.teamMembers)) {
-        setTeamMembers(parsed.teamMembers);
+      if (!Array.isArray(parsed.tasks)) throw new Error('Backup file has no task list.');
+
+      const existingMemberByEmail = new Map(
+        [ownerUser, ...teamMembers].map((member) => [member.email.toLowerCase(), member.id])
+      );
+      const legacyIdMap = new Map<string, string>([['owner', ownerUser.id]]);
+      if (parsed.owner?.id) legacyIdMap.set(parsed.owner.id, ownerUser.id);
+      if (Array.isArray(parsed.teamMembers)) {
+        for (const member of parsed.teamMembers) {
+          if (typeof member.id !== 'string' || typeof member.email !== 'string') continue;
+          const currentId = existingMemberByEmail.get(member.email.toLowerCase());
+          if (currentId) legacyIdMap.set(member.id, currentId);
+        }
       }
-      if (parsed.owner && parsed.owner.email) {
-        setOwnerUser(parsed.owner);
-      }
-      if (parsed.notifications && Array.isArray(parsed.notifications)) {
-        setNotifications(parsed.notifications);
-      }
+
+      const importedTasks = parsed.tasks.map((task: Task) => {
+        const remap = (id: string) => {
+          if (!id) return '';
+          const mapped = legacyIdMap.get(id);
+          if (!mapped) {
+            throw new Error(`No Supabase employee account matches legacy assignee "${id}".`);
+          }
+          return mapped;
+        };
+        return {
+          ...task,
+          primaryDoerId: remap(task.primaryDoerId),
+          secondaryDoerId: remap(task.secondaryDoerId),
+          subSecondaryDoerId: remap(task.subSecondaryDoerId),
+        };
+      });
+
+      const importedNotifications = Array.isArray(parsed.notifications)
+        ? parsed.notifications.map((notification: NotificationItem) => ({
+            ...notification,
+            recipientId: legacyIdMap.get(notification.recipientId) || notification.recipientId,
+          }))
+        : [];
+      setTasks(importedTasks);
+      setNotifications(importedNotifications);
       return true;
     } catch (e) {
-      console.error('Import failed', e);
+      setDataError(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
       return false;
     }
   };
@@ -907,21 +1132,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setNotifications([]);
   };
 
-  const resetToDefaultData = () => {
-    setTasks(INITIAL_TASKS);
-    setNotifications(INITIAL_NOTIFICATIONS);
-    setOwnerUser(OWNER_USER);
-    setTeamMembers(TEAM_MEMBERS);
-    setCurrentUserId(OWNER_USER.id);
-    setIsAuthenticated(true);
-    localStorage.removeItem(STORAGE_KEYS.TASKS);
-    localStorage.removeItem(STORAGE_KEYS.NOTIFICATIONS);
-    localStorage.removeItem(STORAGE_KEYS.AUTH_USER_ID);
-    localStorage.removeItem(STORAGE_KEYS.IS_AUTHENTICATED);
-    localStorage.removeItem(STORAGE_KEYS.OWNER_USER);
-    localStorage.removeItem(STORAGE_KEYS.TEAM_MEMBERS);
-  };
-
   // Calculate Doer Scorecards
   const doerScorecards: DoerScorecard[] = useMemo(() => {
     return teamMembers.map((member) => {
@@ -992,13 +1202,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ownerUser,
         currentUser,
         isAuthenticated,
+        isLoading,
+        dataError,
         notifications: visibleNotifications, // Strictly isolated per user!
         unreadNotificationCount,
         doerScorecards,
         login,
-        quickLogin,
         logout,
-        setCurrentUser: handleSetCurrentUser,
         updateUserCredentials,
         addNewTeamMember,
         deleteTeamMember,
@@ -1017,7 +1227,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         markNotificationRead,
         markAllNotificationsRead,
         clearNotifications,
-        resetToDefaultData,
       }}
     >
       {children}

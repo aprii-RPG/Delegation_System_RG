@@ -18,11 +18,10 @@ export const LoginScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
 
@@ -36,20 +35,16 @@ export const LoginScreen: React.FC = () => {
     }
 
     setIsLoading(true);
-
-    setTimeout(() => {
-      const res = login(email, password);
-      setIsLoading(false);
+    try {
+      const res = await login(email, password);
       if (!res.success) {
         setErrorMessage(res.error || 'Authentication failed. Please verify your email and password.');
       }
-    }, 350);
-  };
-
-  const handleFillCredentials = (fillEmail: string) => {
-    setEmail(fillEmail);
-    setPassword('password123');
-    setErrorMessage('');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Sign in failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -112,9 +107,6 @@ export const LoginScreen: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-300">
                   Password
                 </label>
-                <span className="text-[10px] text-slate-500 font-mono">
-                  Default: password123
-                </span>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
@@ -139,19 +131,9 @@ export const LoginScreen: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs pt-1">
-              <label className="flex items-center space-x-2 text-slate-400 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-slate-700 text-indigo-600 focus:ring-indigo-500 bg-slate-950"
-                />
-                <span className="text-[11px]">Remember session</span>
-              </label>
-
+            <div className="flex items-center justify-end text-xs pt-1">
               <span className="text-[11px] text-indigo-400 font-medium">
-                Encrypted Auth
+                Secured by Supabase Auth
               </span>
             </div>
 

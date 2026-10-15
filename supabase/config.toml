@@ -1,0 +1,4 @@
+project_id = "delegateos"
+
+[functions.invite-employee]
+verify_jwt = true
