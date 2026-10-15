@@ -18,6 +18,7 @@ import {
   Mail,
   Calendar,
   Check,
+  Trash2,
 } from 'lucide-react';
 import { Task, TeamMember } from '../types';
 import { useTasks } from '../context/TaskContext';
@@ -37,7 +38,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onOpenTaskDetails,
   onOpenSendMeetingLink,
 }) => {
-  const { teamMembers, currentUser } = useTasks();
+  const { teamMembers, currentUser, deleteTask } = useTasks();
 
   const primaryDoer = teamMembers.find((m) => m.id === task.primaryDoerId);
   const secondaryDoer = teamMembers.find((m) => m.id === task.secondaryDoerId);
@@ -399,6 +400,22 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </div>
 
         <div className="flex items-center space-x-2">
+          {currentUser.isOwner && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`Delete "${task.title}"? This cannot be undone.`)) {
+                  deleteTask(task.id);
+                }
+              }}
+              className="rounded-lg border border-rose-500/30 p-1.5 text-rose-300 transition-colors hover:border-rose-500/60 hover:bg-rose-500/10 hover:text-rose-200"
+              title="Delete task"
+              aria-label={`Delete task: ${task.title}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+
           {/* Send Meeting Link on Mail Action */}
           {task.meetingDetails?.isMeeting && onOpenSendMeetingLink && (isPrimary || currentUser.isOwner) && (
             <button
