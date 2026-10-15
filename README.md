@@ -67,7 +67,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
    VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
    ```
 
-3. Apply the SQL migrations in `supabase/migrations` in filename order using the Supabase SQL Editor. Existing projects that already applied migration `202610150001_initial_schema.sql` should apply `202610150002_application_data.sql`.
+3. Apply the SQL migrations in `supabase/migrations` in filename order using the Supabase SQL Editor. Existing projects that already applied migrations `202610150001_initial_schema.sql` and `202610150002_application_data.sql` should also apply later migrations as they are added.
 4. Deploy the `invite-employee` Edge Function. From a terminal in the project folder, install/use the Supabase CLI, log in, link the project, then deploy:
 
    ```powershell
@@ -79,6 +79,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
    The function uses Supabase’s server-side environment variables; never add the service-role key to the Vite app or Vercel frontend variables.
 5. In Supabase **Authentication → URL Configuration**, set the site URL and allow the local and deployed app URLs as redirect URLs so invite links return to the app.
 6. Create the first user in **Authentication → Users**, then grant the admin role through the SQL Editor. Do not set role permissions from browser code.
+7. To change an account’s login email, update it in **Authentication → Users**. Confirm the change using the verification message sent by Supabase; the profile email is synchronized automatically by migration `202610150003_sync_auth_email.sql`.
 
 The free Supabase plan can pause projects after a period of inactivity. Check current plan limits and availability needs before production use.
 
