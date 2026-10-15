@@ -1210,20 +1210,21 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const firstAttemptApprovalRate =
         verified.length > 0
           ? Math.round((verifiedFirstAttempt.length / verified.length) * 100)
-          : 90;
+          : 0;
 
       const onTimeCount = verified.filter((t) => {
         if (!t.verificationRecord?.verifiedAt) return true;
         return new Date(t.verificationRecord.verifiedAt) <= new Date(t.dueDate);
       }).length;
       const onTimeRate =
-        verified.length > 0 ? Math.round((onTimeCount / verified.length) * 100) : 95;
-
-      let baseScore = 75;
-      baseScore += Math.min(verified.length * 7, 20);
-      baseScore += (firstAttemptApprovalRate - 80) * 0.25;
-      baseScore -= needsCorrection.length * 10;
-      const overallAccountabilityScore = Math.max(35, Math.min(99, Math.round(baseScore)));
+        verified.length > 0 ? Math.round((onTimeCount / verified.length) * 100) : 0;
+      const earnedTaskPoints = verified.reduce(
+        (total, task) => total + (task.verificationRecord?.awardedScore ?? 0),
+        0
+      );
+      const overallAccountabilityScore = allAssignedTasks.length > 0
+        ? Math.round(earnedTaskPoints / allAssignedTasks.length)
+        : 0;
 
       return {
         memberId: member.id,
