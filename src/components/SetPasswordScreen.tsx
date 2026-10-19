@@ -60,14 +60,14 @@ export const SetPasswordScreen: React.FC = () => {
           <div className="space-y-4 text-center">
             <div role="status" className="flex items-center justify-center gap-2 text-emerald-300">
               <CheckCircle2 className="h-5 w-5" />
-              <span>Password set successfully.</span>
+              <span>Password set successfully. Sign in with your new password.</span>
             </div>
             <button
               type="button"
               onClick={() => window.location.assign('/')}
               className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white hover:bg-indigo-500"
             >
-              Continue to DelegateOS
+              Return to sign in
             </button>
           </div>
         ) : !isAuthenticated ? (

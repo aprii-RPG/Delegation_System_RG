@@ -31,6 +31,7 @@ interface TaskContextType {
   
   // Auth & Session
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   setPassword: (password: string) => Promise<void>;
   changeLoginEmail: (email: string) => Promise<void>;
@@ -280,6 +281,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
+  const sendPasswordReset = async (email: string) => {
+    const redirectTo = new URL('/set-password', window.location.origin).toString();
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+    if (error) throw new Error(error.message);
+  };
+
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) setDataError(`Sign out failed: ${error.message}`);
@@ -291,6 +298,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     const { error } = await supabase.auth.updateUser({ password });
     if (error) throw new Error(error.message);
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      throw new Error(`Your password was updated, but sign-out failed: ${signOutError.message}`);
+    }
   };
 
   const changeLoginEmail = async (email: string) => {
@@ -1265,6 +1276,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         unreadNotificationCount,
         doerScorecards,
         login,
+        sendPasswordReset,
         logout,
         setPassword,
         changeLoginEmail,

@@ -13,17 +13,20 @@ import {
 import { useTasks } from '../context/TaskContext';
 
 export const LoginScreen: React.FC = () => {
-  const { login } = useTasks();
+  const { login, sendPasswordReset } = useTasks();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+    setResetMessage('');
 
     if (!email.trim()) {
       setErrorMessage('Please enter your corporate email address.');
@@ -44,6 +47,25 @@ export const LoginScreen: React.FC = () => {
       setErrorMessage(error instanceof Error ? error.message : 'Sign in failed. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    setErrorMessage('');
+    setResetMessage('');
+    if (!email.trim()) {
+      setErrorMessage('Enter your email address to receive a password reset link.');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      await sendPasswordReset(email);
+      setResetMessage('If an account exists for this email, a password reset link has been sent.');
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to send a password reset email. Please try again.');
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -73,9 +95,14 @@ export const LoginScreen: React.FC = () => {
         {/* ONLY Email & Password Login Card */}
         <div className="bg-slate-900/95 border border-slate-800 rounded-3xl shadow-2xl backdrop-blur-xl p-6 sm:p-8">
           {errorMessage && (
-            <div className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2 animate-in fade-in duration-200">
+            <div role="alert" className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2 animate-in fade-in duration-200">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
               <span>{errorMessage}</span>
+            </div>
+          )}
+          {resetMessage && (
+            <div role="status" className="mb-5 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs">
+              {resetMessage}
             </div>
           )}
 
@@ -107,6 +134,14 @@ export const LoginScreen: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-300">
                   Password
                 </label>
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={isLoading || isResettingPassword}
+                  className="text-xs font-medium text-indigo-400 hover:text-indigo-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isResettingPassword ? 'Sending link…' : 'Forgot password?'}
+                </button>
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
