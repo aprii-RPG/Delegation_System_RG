@@ -122,10 +122,19 @@ export interface ChecklistItem {
   completed: boolean;
 }
 
+export interface TaskAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+}
+
 export interface Task {
   id: string;
   title: string;
   description: string;
+  attachments?: TaskAttachment[];
   type: TaskType;
   status: TaskStatus;
   priority: TaskPriority;

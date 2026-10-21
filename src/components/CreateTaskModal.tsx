@@ -20,6 +20,9 @@ import {
   Check,
   Mic,
   MicOff,
+  Upload,
+  FileText,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   TaskType,
@@ -28,6 +31,7 @@ import {
   ChecklistItem,
   MeetingType,
   MeetingDetails,
+  TaskAttachment,
 } from '../types';
 import { useTasks } from '../context/TaskContext';
 
@@ -46,6 +50,10 @@ export interface MeetingTypeOption {
 }
 
 type VoiceField = 'title' | 'description';
+
+const MAX_TASK_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_TOTAL_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
 
 interface VoiceRecognitionResult {
   readonly isFinal: boolean;
@@ -165,6 +173,9 @@ export const MEETING_TYPE_OPTIONS: MeetingTypeOption[] = [
 
 export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => {
   const { teamMembers, createTask, ownerUser } = useTasks();
+  const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [isReadingAttachments, setIsReadingAttachments] = useState(false);
   const [activeVoiceField, setActiveVoiceField] = useState<VoiceField | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const recognitionRef = useRef<VoiceRecognition | null>(null);
@@ -229,6 +240,64 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
     { id: 'chk-meet-4', title: 'Upload meeting minutes / proof screenshot for Owner verification stamp', completed: false },
   ]);
   const [newChecklistInput, setNewChecklistInput] = useState('');
+
+  const handleAttachmentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    const files = Array.from(input.files || []);
+    input.value = '';
+    if (files.length === 0) return;
+    setAttachmentError(null);
+
+    if (attachments.length + files.length > MAX_TASK_ATTACHMENTS) {
+      setAttachmentError(`You can attach up to ${MAX_TASK_ATTACHMENTS} files to a task.`);
+      return;
+    }
+
+    const oversizedFile = files.find((file) => file.size > MAX_ATTACHMENT_SIZE_BYTES);
+    if (oversizedFile) {
+      setAttachmentError(`${oversizedFile.name} is larger than the 5 MB per-file limit.`);
+      return;
+    }
+
+    const totalSize = attachments.reduce((total, file) => total + file.size, 0)
+      + files.reduce((total, file) => total + file.size, 0);
+    if (totalSize > MAX_TOTAL_ATTACHMENT_SIZE_BYTES) {
+      setAttachmentError('The total size of task attachments cannot exceed 10 MB.');
+      return;
+    }
+
+    setIsReadingAttachments(true);
+    try {
+      const uploadedFiles = await Promise.all(
+        files.map(
+          (file) =>
+            new Promise<TaskAttachment>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                if (typeof reader.result !== 'string') {
+                  reject(new Error(`Could not read ${file.name}.`));
+                  return;
+                }
+                resolve({
+                  id: `attachment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                  name: file.name,
+                  type: file.type || 'application/octet-stream',
+                  size: file.size,
+                  dataUrl: reader.result,
+                });
+              };
+              reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+      setAttachments((current) => [...current, ...uploadedFiles]);
+    } catch (error) {
+      setAttachmentError(error instanceof Error ? error.message : 'Could not read the selected files.');
+    } finally {
+      setIsReadingAttachments(false);
+    }
+  };
 
   useEffect(() => () => {
     recognitionRef.current?.stop();
@@ -441,6 +510,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
       primaryDoerId,
       secondaryDoerId,
       subSecondaryDoerId,
+      attachments,
       meetingDetails,
       checklist,
       recurrence:
@@ -882,6 +952,86 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
                 />
               </div>
             </div>
+          </div>
+
+          {/* Task Attachments */}
+          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-indigo-400" />
+                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                    Files & Images
+                  </h3>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Attach instructions, reference documents, or images for the assignees.
+                </p>
+              </div>
+              <span className="text-[10px] text-slate-500 whitespace-nowrap">
+                Up to 5 files · 5 MB each · 10 MB total
+              </span>
+            </div>
+
+            <label className={`border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-xl p-5 flex flex-col items-center justify-center bg-slate-950/40 transition-colors ${
+              isReadingAttachments || attachments.length >= MAX_TASK_ATTACHMENTS ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+            }`}>
+              <Upload className="w-6 h-6 text-slate-500 mb-2" />
+              <span className="text-xs font-semibold text-slate-200">
+                {isReadingAttachments ? 'Reading files…' : 'Choose files or images'}
+              </span>
+              <span className="text-[11px] text-slate-500 mt-1">
+                Any file type · {MAX_TASK_ATTACHMENTS - attachments.length} file{MAX_TASK_ATTACHMENTS - attachments.length === 1 ? '' : 's'} remaining
+              </span>
+              <input
+                type="file"
+                multiple
+                onChange={handleAttachmentSelect}
+                className="hidden"
+                disabled={isReadingAttachments || attachments.length >= MAX_TASK_ATTACHMENTS}
+              />
+            </label>
+
+            {attachmentError && (
+              <p role="alert" className="text-xs text-rose-400">{attachmentError}</p>
+            )}
+
+            {attachments.length > 0 && (
+              <div className="space-y-2">
+                {attachments.map((attachment) => (
+                  <div
+                    key={attachment.id}
+                    className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-slate-900 border border-slate-800"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {attachment.type.startsWith('image/') ? (
+                        <img
+                          src={attachment.dataUrl}
+                          alt=""
+                          className="w-10 h-10 rounded-lg object-cover border border-slate-700"
+                        />
+                      ) : (
+                        <FileText className="w-5 h-5 text-indigo-400 shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <span className="block text-xs text-slate-200 truncate">{attachment.name}</span>
+                        <span className="text-[10px] text-slate-500">
+                          {(attachment.size / 1024).toFixed(0)} KB
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAttachments((current) => current.filter((item) => item.id !== attachment.id))}
+                      aria-label={`Remove ${attachment.name}`}
+                      className="p-1.5 text-slate-500 hover:text-rose-400 shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* 4. 3-TIER DELEGATION CHAIN (Showing Names & Real Corporate Emails) */}

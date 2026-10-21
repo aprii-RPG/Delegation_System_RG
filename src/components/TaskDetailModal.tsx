@@ -19,6 +19,7 @@ import {
   Video,
   Mail,
   Copy,
+  Download,
 } from 'lucide-react';
 import { Task } from '../types';
 import { useTasks } from '../context/TaskContext';
@@ -273,6 +274,48 @@ export const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   {task.description || 'No detailed instructions provided.'}
                 </p>
               </div>
+
+              {task.attachments && task.attachments.length > 0 && (
+                <div className="bg-slate-950/70 p-5 rounded-xl border border-slate-800 space-y-3">
+                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    Task Files & Images ({task.attachments.length})
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {task.attachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="flex items-center gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 min-w-0"
+                      >
+                        {attachment.type.startsWith('image/') ? (
+                          <img
+                            src={attachment.dataUrl}
+                            alt={attachment.name}
+                            className="w-12 h-12 rounded-lg object-cover border border-slate-700 shrink-0"
+                          />
+                        ) : (
+                          <FileText className="w-6 h-6 text-indigo-400 shrink-0" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-xs font-medium text-slate-200 truncate">
+                            {attachment.name}
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            {(attachment.size / 1024).toFixed(0)} KB
+                          </span>
+                        </div>
+                        <a
+                          href={attachment.dataUrl}
+                          download={attachment.name}
+                          aria-label={`Download ${attachment.name}`}
+                          className="p-2 rounded-lg text-indigo-300 hover:bg-indigo-500/10 shrink-0"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* 3-Tier Delegation Structure */}
               <div className="bg-slate-950/70 p-5 rounded-xl border border-slate-800 space-y-3">
