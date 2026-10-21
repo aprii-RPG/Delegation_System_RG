@@ -28,17 +28,9 @@ export const SubmitProofModal: React.FC<SubmitProofModalProps> = ({ task, onClos
   const isResubmission = task.status === 'NEEDS_CORRECTION';
   const latestCorrection = task.latestCorrection;
 
-  const [description, setDescription] = useState(
-    isResubmission
-      ? `Updated and resolved issues requested by owner: ${latestCorrection?.feedback ? `Addressing: "${latestCorrection.feedback.slice(0, 60)}..."` : ''}`
-      : ''
-  );
-  const [imageUrl, setImageUrl] = useState<string>(
-    task.currentSubmission?.imageUrl || SAMPLE_IMAGE_PROOFS[0].url
-  );
-  const [imageCaption, setImageCaption] = useState<string>(
-    task.currentSubmission?.imageCaption || 'Verified completion proof screenshot'
-  );
+  const [description, setDescription] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [imageCaption, setImageCaption] = useState('');
   const [attachmentUrl, setAttachmentUrl] = useState<string>(
     task.currentSubmission?.attachmentUrl || ''
   );

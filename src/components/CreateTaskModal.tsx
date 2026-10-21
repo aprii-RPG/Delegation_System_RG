@@ -185,10 +185,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
   const [selectedMeetingType, setSelectedMeetingType] = useState<MeetingType>('PURCHASE_MEETING');
   const [customMeetingLabel, setCustomMeetingLabel] = useState('');
 
-  const [title, setTitle] = useState('Purchase Meeting: Vendor Price Negotiation & PO Authorization');
-  const [description, setDescription] = useState(
-    'Review procurement invoices, supplier quotes, material orders, and budget allocations.'
-  );
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Finance & Compliance');
   const [priority, setPriority] = useState<TaskPriority>('HIGH');
 
@@ -385,9 +383,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose }) => 
 
     const found = MEETING_TYPE_OPTIONS.find((opt) => opt.type === mType);
     if (found) {
-      setTitle(found.defaultTitle);
       setCategory(found.defaultCategory);
-      setDescription(found.description);
     }
 
     // Set meeting checklist items
