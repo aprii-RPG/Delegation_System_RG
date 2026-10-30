@@ -757,8 +757,16 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return recipient === 'owner' || n.recipientId === currentUser.id;
       });
     }
-    return notifications.filter((n) => n.recipientId === currentUser.id);
-  }, [notifications, currentUser, isAuthenticated]);
+    return notifications.filter((notification) => {
+      if (notification.recipientId !== currentUser.id) return false;
+      const task = tasks.find((item) => item.id === notification.taskId);
+      return task
+        ? task.primaryDoerId === currentUser.id ||
+            task.secondaryDoerId === currentUser.id ||
+            task.subSecondaryDoerId === currentUser.id
+        : false;
+    });
+  }, [notifications, tasks, currentUser, isAuthenticated]);
 
   // Create Task
   const createTask = (
